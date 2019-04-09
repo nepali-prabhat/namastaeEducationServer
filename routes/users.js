@@ -2,28 +2,13 @@ const router = require('express').Router()
 const { check, validationResult } = require('express-validator/check');
 const { sanitizeBody } = require('express-validator/filter');
 const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken')
+const assignRoleAndValidate = require('../middlewares/jwtAuthentication')
+const signIn = require('../middlewares/signIn')
 const saltRounds = 10;
+const ROLES = require('../config').ROLES
+
 router.post('/signIn',[sanitizeBody('username').trim()],(req,res)=>{
-    const {username,password} = req.body
-    const query = 'SELECT * FROM users WHERE user_login_name=?'
-    db.query(query,[username],(err,rows)=>{
-        if(err){
-            return res.status(400).json({successs:false, errors:[{"location":"database", "msg":err.code}]})
-        }
-        if(rows.length===0){
-            return res.status(400).json({success:false, errors: [{"location":"username", "msg":"incorrect username."}]})
-        }
-        //toString because user_pass_hash is of type <Buffer>
-        const db_pw = rows[0].user_pass_hash.toString()        
-            if( bcrypt.compareSync(password, db_pw) ){
-                const secret = config.secret;
-                const token = jwt.sign({id:rows[0].user_id,type:'user'},secret, {expiresIn:"1d"})
-                return res.status(200).json({success:true, token:token})
-            }else{
-                return res.status(400).json({success:false, errors: [{"location":"password", "msg":"incorrect pssword."}]})
-            }
-    })
+    signIn(req,res,ROLES.USER)
 })
 
 const sign_up_validator = [
@@ -49,15 +34,26 @@ router.post("/signUp",sign_up_validator,(req,res)=>{
         }
         const {uname,fname,lname,email,password}= req.body 
         bcrypt.hash(password, saltRounds, function(err, hash) {
-            query="INSERT INTO users (`user_login_name`, `user_first_name`, `user_last_name`, `user_email`, `user_pass_hash`) VALUES (?,?,?,?,?)"
+            query="INSERT INTO users (`login_name`, `first_name`, `last_name`, `email`, `pass_hash`) VALUES (?,?,?,?,?);"
             db.query(query,[uname,fname,lname,email,hash],(err,results)=>{
                 if(err){
-                    return res.status(400).json({successs:false, errors:[{"location":"database", "msg":err.code}]})
+                    return res.status(400).json({success:false, errors:[{"location":"database", "msg":err.code}]})
                 }
                 res.status(200).json({success:true})
             })
         });
     }
 )
+
+router.get('/details',assignRoleAndValidate(ROLES.USER),(req,res)=>{
+    const id = req.decoded.id
+    const query = 'SELECT id,login_name,first_name,last_name,email FROM users WHERE id=?;'
+    db.query(query,[id],(err,rows,fields)=>{
+        if(err){
+            return res.status(400).json({success:false, errors:[{"location":"database", "msg":err.code}]})
+        }
+        res.status(200).json(rows[0])
+    })
+})
 
 module.exports = router

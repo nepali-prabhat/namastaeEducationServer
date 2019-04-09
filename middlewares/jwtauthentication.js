@@ -1,15 +1,19 @@
 const jwt = require('jsonwebtoken')
-const config = require('../config')
-
-function jwtUserAuthenticate(req,res,next){
-    const token = req.headers["authorization"]
-    if(!token){
-        return res.status(400).json({success:false, error:{location:"jwt_token",msg:"no jwt token provided."} })
+const ROLES = require('../config').ROLES
+function assignRoleAndValidate(role){
+    return (req,res,next)=>{
+        //const token = req.headers["authorization"]
+        const token = req.cookies['jwt-token']
+        if(!token){
+            return res.status(400).json({success:false, error:{location:"jwt_token",msg:"sign in is required."} })
+        }
+        jwt.verify(token,ROLES.secrets[role], (err,decoded)=>{
+            if(err) {
+                return res.status(400).json({success:false, error:{location:"jwt_token_verify",msg:"sign in is required.",name:err.name}})
+            }
+            req.decoded = decoded
+            next()
+        })
     }
-    jwt.verify(token,config.secret, (err,decoded)=>{
-        if(err) console.error(err); return res.status(400).json({success:false, error:{location:"jwt_token_verify",msg:err} })
-        req.decoded = decoded
-        next()
-    })
 }
-module.exports = jwtUserAuthenticate
+module.exports = assignRoleAndValidate

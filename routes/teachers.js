@@ -45,8 +45,7 @@ router.post('/signUp',sign_up_validator,(req,res)=>{
     })
 })
 
-router.get('/details',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
-    if(req.role == req.decoded.role){    
+router.get('/details',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{ 
         const id = req.decoded.id
         const query = 'SELECT `login_name`, `first_name`, `last_name`, `email`, `phone_no` FROM teachers WHERE id=?;'
         db.query(query,[id],(err,rows,fields)=>{
@@ -56,9 +55,6 @@ router.get('/details',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
             console.log()
             res.status(200).json(rows[0])
         })
-    }else{
-        res.status(401).json({success:false, errors:[{"location":"authentication", "msg":"Unauthorized request."}]})
-    }
 })
 
 module.exports = router

@@ -4,7 +4,7 @@ const { check, validationResult } = require('express-validator/check');
 const { sanitizeBody } = require('express-validator/filter');
 const ROLES = require('../config').ROLES
 router.get('/all',(req,res)=>{
-    const query = 'SELECT * FROM subject WHERE 1'
+    const query = 'SELECT * FROM subject WHERE 1;'
     db.query(query,(err,row)=>{
         if(err){
             return res.status(400).json({success:false, errors:[{"location":"database", "msg":err.code}]})
@@ -37,7 +37,7 @@ router.get('/:id/allSections',(req,res)=>{
     `
         SELECT id, sec_name
         FROM sub_section
-        WHERE sub_id = ?
+        WHERE sub_id = ?;
     `
     db.query(query,id,(err,row)=>{
         if(err){
@@ -55,7 +55,7 @@ router.get('/:id/:section',(req,res)=>{
         FROM sub_chapter 
         JOIN sub_section 
         ON sub_chapter.sec_id = sub_section.id 
-        WHERE sub_chapter.sub_id = ? AND sub_section.id = ?
+        WHERE sub_chapter.sub_id = ? AND sub_section.id = ?;
     `
     db.query(query,[subject_id,section_id],(err,row)=>{
         if(err){
@@ -79,7 +79,7 @@ router.post('/addSubject',assignRoleAndValidate(ROLES.TEACHER),addSubjectValidat
             return res.status(400).json({success: false, errors:errors.array()})
         }
         const {sub_code , sub_name} = req.body
-        const query = 'INSERT INTO subject (sub_CODE, sub_name) VALUES (?,?)'
+        const query = 'INSERT INTO subject (sub_CODE, sub_name) VALUES (?,?);'
         db.query(query,[sub_code, sub_name],(err,result)=>{
             if(err){
                 return res.status(400).json({success:false, errors:[{"location":"database", "msg":err.code}]})
@@ -106,7 +106,7 @@ router.post('/addSection',assignRoleAndValidate(ROLES.TEACHER),addSectionValidat
             return res.status(400).json({success: false, errors:errors.array()})
         }
         const {sec_order,sec_name ,sub_id} = req.body
-        const query = 'INSERT INTO sub_section (sec_order_no,sec_name,sub_id) VALUES (?,?,?)'
+        const query = 'INSERT INTO sub_section (sec_order_no,sec_name,sub_id) VALUES (?,?,?);'
         db.query(query,[sec_order,sec_name ,sub_id],(err,result)=>{
             if(err){
                 return res.status(400).json({success:false, errors:[{"location":"database", "msg":err.code}]})
@@ -132,7 +132,7 @@ router.post('/addChapter',assignRoleAndValidate(ROLES.TEACHER),addChapterValidat
             return res.status(400).json({success: false, errors:errors.array()})
         }
         const {sub_id,sec_id,title} = req.body
-        const query = 'INSERT INTO sub_chapter (sub_id,sec_id,chap_title) VALUES (?,?,?)'
+        const query = 'INSERT INTO sub_chapter (sub_id,sec_id,chap_title) VALUES (?,?,?);'
         db.query(query,[sub_id,sec_id,title],(err,result)=>{
             if(err){
                 return res.status(400).json({success:false, errors:[{"location":"database", "msg":err.code}]})
@@ -163,7 +163,7 @@ router.post('/createNewSubject',assignRoleAndValidate(ROLES.TEACHER),createSubje
             return res.status(400).json({success: false, errors:errors.array()})
         }else{
             const {sub_code , sub_name} = req.body
-            const query = 'INSERT INTO subject (sub_CODE, sub_name) VALUES (?,?)'
+            const query = 'INSERT INTO subject (sub_CODE, sub_name) VALUES (?,?);'
             db.query(query,[sub_code, sub_name],(err,result)=>{
                 if(err){
                     return res.status(400).json({success:false, errors:[{"location":"database 1", "msg":err.code}]})
@@ -197,11 +197,16 @@ router.post('/createNewSubject',assignRoleAndValidate(ROLES.TEACHER),createSubje
 })
 //update subject name or code
 
-router.put('/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
+router.put('/subject/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
     if(req.decoded.type == ROLES.TEACHER){
         const id = req.params.id
         const {sub_code, sub_name} = req.body
-        const query = `UPDATE subject SET ${sub_code? 'sub_CODE=?':''} ${sub_code && sub_name ? ",":""} ${sub_name? "sub_name = ?":''} WHERE id=?;`
+        const query = `
+            UPDATE subject 
+            SET ${sub_code? 'sub_CODE=?':''} 
+                ${sub_code && sub_name ? ",":""} 
+                ${sub_name? "sub_name = ?":''} 
+            WHERE id=?;`
         console.log(query)
         const queryParams = []
         if(sub_code){
@@ -215,7 +220,7 @@ router.put('/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
         console.log(query)
         db.query(query,queryParams,(err,result)=>{
             if(err){
-                return res.status(400).send({success:false, errors:[{"location":"database", "msg":err.code}]})
+                return res.status(400).json({success:false, errors:[{"location":"database", "msg":err.code}]})
             }
             console.log(result)
             res.status(200).json({success:true})
@@ -224,13 +229,13 @@ router.put('/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
         res.status(401).json({success:false, errors:[{"location":"authentication",msg:"Unauthorized request."}]})
     }
 })
-router.put('/:section',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
+router.put('/section/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
     if(req.decoded.type == ROLES.TEACHER){
-        section = req.params.section
+        id = req.params.id
         const {order, sub_id,name} = req.body
         queryParams = []
         if(order){
-            queryParams.push(order_no)
+            queryParams.push(order)
         }
         if(name){
             queryParams.push(name)
@@ -238,19 +243,74 @@ router.put('/:section',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
         if(sub_id){
             queryParams.push(sub_id)
         }
+        queryParams.push(id)
         const query = `
-            UPDATE sub_section SET ${order_no? "sec_order_no=?":""} ${order_no && name? ",": ""} ${name? "sec_name=?":""} ${name && sub_id? ",": ""} ${sub_id ? "sub_id=?":"" }
-        `
+            UPDATE sub_section 
+            SET ${order? "sec_order_no=?":""} ${order && (name || sub_id)? ",": ""}
+                ${name? "sec_name=?":""} ${name && sub_id ? ",": ""} 
+                ${sub_id ? "sub_id=?":""}
+            WHERE id=?;
+            `
         db.query(query,queryParams,(err,result)=>{
             if(err){
-                return res.status(400).send({success:false, errors:[{"location":"database", "msg":err.code}]})
+                console.log(err)
+                return res.status(400).json({success:false, errors:[{"location":"database", "msg":err.code}]})
             }
-            console.log(result)
             res.status(200).json({success:true})
         })
     }else{
         res.status(400).json({success:false, msg:"Unauthorized request."})
     }
-    res.end()
+})
+router.put('/chapter/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
+    if(req.decoded.type == ROLES.TEACHER){
+        id = req.params.id
+        const {sub_id,sec_id,title} = req.body
+        queryParams = []
+        if(sub_id){
+            queryParams.push(sub_id)
+        }
+        if(sec_id){
+            queryParams.push(sec_id)
+        }
+        if(title){
+            queryParams.push(title)
+        }
+        // if(location){
+        //     queryParams.push(location)
+        // }
+        //${location? "chap_location=?":""} ${order && (name || sub_id)? ",": ""}  
+        queryParams.push(id)
+        const query = `
+            UPDATE sub_chapter
+            SET ${sub_id? "sub_id=?":""} ${sub_id && (sec_id || title)? ",": ""} 
+                ${sec_id? "sec_id=?":""} ${sec_id && title? ",": ""}
+                ${title? "chap_title=?":""} 
+            WHERE id=?;
+            `
+        db.query(query,queryParams,(err,result)=>{
+            if(err){
+                console.log(err.sqlMessage)
+                return res.status(400).json({success:false, errors:[{"location":"database", "msg":err.code}]})
+            }
+            res.status(200).json({success:true})
+        })
+    }else{
+        res.status(400).json({success:false, msg:"Unauthorized request."})
+    }
+})
+router.delete('/subject/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
+    if(req.decoded.type == ROLES.TEACHER){
+        const id = req.params.id
+        const query = `DELETE FROM subject WHERE id=?`
+        db.query(query,[id],(err,result)=>{
+            if(err){
+                return res.status(400).json({success:false,errors:[{"location":"database","msg":err.code}]})
+            }
+            res.status(200).json({success:true})
+        })
+    }else{
+        res.status(401).json({success:false,msg:"Unauthorized request."})
+    }
 })
 module.exports = router

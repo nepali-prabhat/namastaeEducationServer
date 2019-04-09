@@ -27,7 +27,7 @@ const signIn = (req,res,role)=>{
         //toString because user_pass_hash is of type <Buffer>
         const db_pw = rows[0].pass_hash.toString()
         if( bcrypt.compareSync(password, db_pw) ){
-            const token = jwt.sign({id:rows[0].id,type:role},ROLES.secrets[role], {expiresIn:"1h"})
+            const token = jwt.sign({id:rows[0].id,type:role},ROLES.secrets[role], {expiresIn:"1d"})
             //todo: add {httpOnly:false,secure:true} for https, web server only
             res.cookie('jwt-token',token)
             return res.status(200).json({success:true})

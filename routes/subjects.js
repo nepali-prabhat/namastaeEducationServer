@@ -174,9 +174,15 @@ router.post('/createNewSubject',assignRoleAndValidate(ROLES.TEACHER),createSubje
         })
     }
 })
-//update subject name or code
-
-router.put('/subject/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
+const updateSubjectValidator = [
+    sanitizeBody(['sub_code','sub_name']).trim(),
+    check('sub_code').isLength(7).withMessage("Invalid subject code."),
+]
+router.put('/subject/:id',assignRoleAndValidate(ROLES.TEACHER),updateSubjectValidator,(req,res)=>{
+    const errors = validationResult(req)
+    if(!errors.isEmpty()){
+        return res.status(400).json({success: false, errors:errors.array()})
+    }
     const id = req.params.id
     const {sub_code, sub_name} = req.body
     const query = `
@@ -204,7 +210,16 @@ router.put('/subject/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
         res.status(200).json({success:true})
     })
 })
-router.put('/section/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
+const updateSectionValidator = [
+    sanitizeBody(['name']).trim(),
+    check('order').isNumeric().withMessage("section order must be numeric."),
+    check('sub_id').isNumeric().withMessage("subject id must be numeric."),
+]
+router.put('/section/:id',assignRoleAndValidate(ROLES.TEACHER),updateSectionValidator,(req,res)=>{
+    const errors = validationResult(req)
+    if(!errors.isEmpty()){
+        return res.status(400).json({success: false, errors:errors.array()})
+    }
     id = req.params.id
     const {order, sub_id,name} = req.body
     queryParams = []
@@ -233,7 +248,16 @@ router.put('/section/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
         res.status(200).json({success:true})
     })
 })
-router.put('/chapter/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
+const updateChapterValidator = [
+    sanitizeBody(['title','location']).trim(),
+    check('sec_id').isNumeric().withMessage("section id must be numeric."),
+    check('sub_id').isNumeric().withMessage("subject id must be numeric."),
+]
+router.put('/chapter/:id',assignRoleAndValidate(ROLES.TEACHER),updateChapterValidator,(req,res)=>{
+    const errors = validationResult(req)
+    if(!errors.isEmpty()){
+        return res.status(400).json({success: false, errors:errors.array()})
+    }
     id = req.params.id
     const {sub_id,sec_id,title} = req.body
     queryParams = []

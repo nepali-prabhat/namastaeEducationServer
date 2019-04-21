@@ -13,7 +13,6 @@ const signIn = (req,res,role)=>{
         case ROLES.ADMIN:
             table = "admins"
             break;
-            
     }
     const {username,password} = req.body
     const query = `SELECT * FROM ${table} WHERE login_name=?;`
@@ -22,6 +21,7 @@ const signIn = (req,res,role)=>{
             return res.status(400).json({successs:false, errors:[{"location":"database", "msg":err.code}]})
         }
         if(rows.length===0){
+            console.log(username,password)
             return res.status(400).json({success:false, errors: [{"location":"username", "msg":"incorrect username."}]})
         }
         //toString because user_pass_hash is of type <Buffer>
@@ -29,8 +29,8 @@ const signIn = (req,res,role)=>{
         if( bcrypt.compareSync(password, db_pw) ){
             const token = jwt.sign({id:rows[0].id},ROLES.secrets[role], {expiresIn:"1d"})
             //todo: add {httpOnly:false,secure:true} for https, web server only
-            res.cookie('jwt-token',token)
-            return res.status(200).json({success:true})
+            console.log(token)
+            return res.status(200).json({success:true, 'auth-token':token, id:rows[0].id})
         }else{
             return res.status(400).json({success:false, errors: [{"location":"password", "msg":"incorrect pssword."}]})
         }

@@ -34,6 +34,7 @@ router.post("/signUp",sign_up_validator,(req,res)=>{
         }
         const {uname,fname,lname,email,password}= req.body 
         bcrypt.hash(password, saltRounds, function(err, hash) {
+            if (err) throw err;
             query="INSERT INTO users (`login_name`, `first_name`, `last_name`, `email`, `pass_hash`) VALUES (?,?,?,?,?);"
             db.query(query,[uname,fname,lname,email,hash],(err,results)=>{
                 if(err){

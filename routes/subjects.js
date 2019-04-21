@@ -2,7 +2,10 @@ const router = require('express').Router()
 const assignRoleAndValidate = require('../middlewares/jwtAuthentication')
 const { check, validationResult } = require('express-validator/check');
 const { sanitizeBody } = require('express-validator/filter');
+const addChapterFileMiddleware = require('../middlewares/file').addChapterFileMiddleware
+const deleteChapterFileMiddleware = require('../middlewares/file').deleteChapterFileMiddleware
 const ROLES = require('../config').ROLES
+
 router.get('/all',(req,res)=>{
     const query = 'SELECT * FROM subject WHERE 1;'
     db.query(query,(err,row)=>{
@@ -12,6 +15,7 @@ router.get('/all',(req,res)=>{
         return res.status(200).json(row)
     })
 })
+
 router.get('/:id',(req,res)=>{
     const id = req.params.id
     const query = 
@@ -46,6 +50,7 @@ router.get('/:id/allSections',(req,res)=>{
         return res.status(200).json(row)
     })
 })
+
 router.get('/:id/:section',(req,res)=>{
     const subject_id = req.params.id
     const section_id = req.params.section
@@ -112,33 +117,61 @@ const addChapterValidator = [
     check('sec_id').isNumeric().withMessage("section id must be numeric."),
     check('title').exists().withMessage("chapter title required."),
     check('sub_id').isNumeric().withMessage("subject id must be numeric."),
-    check('sub_id').exists().withMessage("subject id associated with chapter is required.")
+    check('sub_id').exists().withMessage("subject id associated with chapter is required."),
 ]
-router.post('/addChapter',assignRoleAndValidate(ROLES.TEACHER),addChapterValidator,(req,res)=>{
-    const errors = validationResult(req)
-    if(!errors.isEmpty()){
-        return res.status(400).json({success: false, errors:errors.array()})
-    }
-    const {sub_id,sec_id,title} = req.body
-    const query = 'INSERT INTO sub_chapter (sub_id,sec_id,chap_title) VALUES (?,?,?);'
-    db.query(query,[sub_id,sec_id,title],(err,result)=>{
-        if(err){
-            return res.status(400).json({success:false, errors:[{"location":"database", "msg":err.code}]})
+router.post('/addChapter',assignRoleAndValidate(ROLES.TEACHER),
+    addChapterValidator,
+    (req,res,next)=>{
+        const errors = validationResult(req)
+        if(!errors.isEmpty()){
+            return res.status(400).json({success: false, errors:errors.array()})
         }
-        return res.status(200).json({success: true})
-    })
-})
+        next()
+    },
+    addChapterFileMiddleware,
+    (req,res)=>{
+        const {sub_id,sec_id,title,filename} = req.body
+        const query = 'INSERT INTO sub_chapter (sub_id,sec_id,chap_title,chap_filename) VALUES (?,?,?,?);'
+        db.query(query,[sub_id,sec_id,title,filename],(err,result)=>{
+            if(err){
+                return res.status(400).json({success:false, errors:[{"location":"database", "msg":err.code}]})
+            }
+            res.status(200).json({success:'true'})
+        })
+    }
+)
+/*
+{
+    sub_name:string,
+    sub_code:string,
+    sections:
+    [
+        {
+            sec_name:string
+            order:number,
+            chapters:[
+                {
+                    chap_name: string
+                    location:string
+                }
+            ]
+        }
+    ]
+}
+*/
 const createSubjectValidator = [
-    sanitizeBody(['sub_code','sub_name']).trim(),
     check('sub_code').not().isEmpty().withMessage("subject code required."),
-    check('sub_code').isLength(7).withMessage("Invalid subject code."),
     check('sub_name').not().isEmpty().withMessage("subject name required."),
-    sanitizeBody(['sec_name']).trim(),
     check('sec_name').not().isEmpty().withMessage("name of section required required."),
-    check('sec_order').isNumeric().withMessage("section order must be numeric."),
     check('sec_order').not().isEmpty().withMessage("section order required required."),
-    sanitizeBody(['title','location']).trim(),
     check('title').exists().withMessage("chapter title required."),
+    
+    sanitizeBody(['sub_code','sub_name']).trim(),
+    check('sub_code').isLength(7).withMessage("Invalid subject code."),
+    
+    check('sec_order').isArray().withMessage("section order must be array."),
+    check('sec_name').isArray().withMessage("section order must be array."),
+    sanitizeBody(['title','location']).trim(),
 ]
 router.post('/createNewSubject',assignRoleAndValidate(ROLES.TEACHER),createSubjectValidator,(req,res)=>{
     const errors = validationResult(req)
@@ -152,7 +185,6 @@ router.post('/createNewSubject',assignRoleAndValidate(ROLES.TEACHER),createSubje
                 return res.status(400).json({success:false, errors:[{"location":"database 1", "msg":err.code}]})
             }
             const sub_id = result.insertId
-            console.log(sub_id)
             const {sec_order,sec_name} = req.body
             const query = 'INSERT INTO sub_section (sec_order_no,sec_name,sub_id) VALUES (?,?,?)'
             db.query(query,[sec_order,sec_name ,sub_id],(err,result)=>{
@@ -174,10 +206,12 @@ router.post('/createNewSubject',assignRoleAndValidate(ROLES.TEACHER),createSubje
         })
     }
 })
+
 const updateSubjectValidator = [
     sanitizeBody(['sub_code','sub_name']).trim(),
     check('sub_code').isLength(7).withMessage("Invalid subject code."),
 ]
+
 router.put('/subject/:id',assignRoleAndValidate(ROLES.TEACHER),updateSubjectValidator,(req,res)=>{
     const errors = validationResult(req)
     if(!errors.isEmpty()){
@@ -249,7 +283,7 @@ router.put('/section/:id',assignRoleAndValidate(ROLES.TEACHER),updateSectionVali
     })
 })
 const updateChapterValidator = [
-    sanitizeBody(['title','location']).trim(),
+    sanitizeBody(['title']).trim(),
     check('sec_id').isNumeric().withMessage("section id must be numeric."),
     check('sub_id').isNumeric().withMessage("subject id must be numeric."),
 ]
@@ -290,34 +324,72 @@ router.put('/chapter/:id',assignRoleAndValidate(ROLES.TEACHER),updateChapterVali
         res.status(200).json({success:true})
     })
 })
-router.delete('/subject/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
+
+router.delete('/subject/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res,next)=>{
     const id = req.params.id
-    const query = `DELETE FROM subject WHERE id=?`
-    db.query(query,[id],(err,result)=>{
+    let filenames = []
+    const query1 = `SELECT chap_filename as fn FROM sub_chapter WHERE sub_id=? AND chap_filename!=NULL`
+    db.query(query1,[id],(err,results)=>{
         if(err){
             return res.status(400).json({success:false,errors:[{"location":"database","msg":err.code}]})
         }
-        res.status(200).json({success:true})
+        results.map((result)=>{
+                filenames = [...filenames,result.fn]
+        })
+        req.body.filenames = filenames
+        const query2 = `DELETE FROM subject WHERE id=?`
+        db.query(query2,[id],(err,results)=>{
+            if(err){
+                return res.status(400).json({success:false,errors:[{"location":"database","msg":err.code}]})
+            }
+            next()
+        })
     })
-})
-router.delete('/section/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
+},deleteChapterFileMiddleware)
+
+router.delete('/section/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res,next)=>{
     const id = req.params.id
-    const query = `DELETE FROM sub_section WHERE id=?`
-    db.query(query,[id],(err,result)=>{
+    let filenames = []
+    const query1 = `SELECT chap_filename as fn FROM sub_chapter WHERE sec_id=?`
+    db.query(query1,[id],(err,results)=>{
         if(err){
             return res.status(400).json({success:false,errors:[{"location":"database","msg":err.code}]})
         }
-        res.status(200).json({success:true})
+        results.map((result)=>{
+            filenames = [...filenames,result.fn]
+        })
+        req.body.filenames = filenames
+        const query = `DELETE FROM sub_section WHERE id=?`
+        db.query(query,[id],(err,results)=>{
+            if(err){
+                return res.status(400).json({success:false,errors:[{"location":"database","msg":err.code}]})
+            }
+            next()
+        })
     })
-})
-router.delete('/chapter/:id',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
-    const id = req.params.id
-    const query = `DELETE FROM sub_chapter WHERE id=?`
-    db.query(query,[id],(err,result)=>{
-        if(err){
-            return res.status(400).json({success:false,errors:[{"location":"database","msg":err.code}]})
-        }
-        res.status(200).json({success:true})
-    })
-})
+},deleteChapterFileMiddleware)
+
+router.delete('/chapter/:id',assignRoleAndValidate(ROLES.TEACHER),
+    (req,res,next)=>{
+        const id = req.params.id
+        let filenames = []
+        const query1 = `SELECT chap_filename as fn FROM sub_chapter WHERE id=?`
+        db.query(query1,[id],(err,results)=>{
+            if(err){
+                return res.status(400).json({success:false,errors:[{"location":"database","msg":err.code}]})
+            }
+            console.log('result',result)
+            filenames = [...filenames,result[0].fn]
+            req.body.filenames = filenames
+            const query = `DELETE FROM sub_chapter WHERE id=?`
+            db.query(query,[id],(err,results)=>{
+                if(err){
+                    return res.status(400).json({success:false,errors:[{"location":"database","msg":err.code}]})
+                }
+                next()
+            })
+        })
+    }
+,deleteChapterFileMiddleware)
+
 module.exports = router

@@ -52,9 +52,8 @@ router.get('/details',assignRoleAndValidate(ROLES.TEACHER),(req,res)=>{
             if(err){
                 return res.status(400).json({success:false, errors:[{"location":"database", "msg":err.code}]})
             }
-            console.log()
             res.status(200).json(rows[0])
         })
 })
 
-module.exports = router
+module.exports = router 

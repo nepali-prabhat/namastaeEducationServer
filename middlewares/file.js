@@ -1,13 +1,9 @@
 const path =require('path')
-const crypto =require('crypto')
 const fs = require('fs')
-function getRandomString(len){
-    return crypto.randomBytes(Math.floor(len/2)).toString('hex').slice(0,len)
-}
-function addChapterFileMiddleware(req,res,next){
-    const {title} = req.body
-    const filename = getRandomString(5)+title.slice(0,5)
-    let content = ' ' || req.body.content
+
+function addChapterFileMiddleware(req,res){
+    const {filename} = req.body
+    let content = req.body.content? req.body.content : " "
     const dir = path.join(__dirname,`../static/html/`)
     const location = dir+filename+'.html'
     fs.writeFile(location,content,function(err){
@@ -15,8 +11,7 @@ function addChapterFileMiddleware(req,res,next){
             return res.status(400).json({success:'false',errors:[{location:'file system',msg:'cannot make file'}]})
         }
         console.log("saved file at",location)
-        req.body.filename = filename
-        next()
+        res.status(200).json({success:true,id:req.body.insertedId,filename})
     })
 }
 function deleteChapterFileMiddleware(req,res){
